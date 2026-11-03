@@ -1,0 +1,56 @@
+/* HTML Source plugin — host dialog chrome overrides.
+ *
+ * Bulwark renders the plugin dialog frame itself: the "from plugin …" line,
+ * the ⋮ menu and the 640 px height cap are host code, not plugin API. This
+ * sheet is injected into the webmail only (nginx sub_filter, see docs/chrome.md) and is
+ * scoped to data-plugin-dialog="html-source", so every other dialog keeps the
+ * stock look. Delete the <link> injection to roll back.
+ */
+
+/* Overlay: no gutter, panel fills the viewport. */
+[role="dialog"][aria-modal="true"]:has(> div[data-plugin-dialog="html-source"]) {
+  padding: 0 !important;
+  background: rgb(9 9 11 / 0.62) !important;
+}
+
+/* Panel: overrides the inline max-width / height:640px React sets. */
+[role="dialog"][aria-modal="true"] > div[data-plugin-dialog="html-source"] {
+  width: 100% !important;
+  max-width: none !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+/* "来自插件 HTML Source" */
+[data-plugin-dialog="html-source"] [data-plugin-dialog-source] {
+  display: none !important;
+}
+
+/* The ⋮ menu duplicates the X button's job (close). */
+[data-plugin-dialog="html-source"] [aria-haspopup="menu"] {
+  display: none !important;
+}
+
+/* Compact chrome. The stock host header is px-6 py-4 with an 18px title, and
+ * the body wrapper adds another px-6 py-4 around the plugin frame; the plugin
+ * brings its own 10px padding, so all of that is dead space. */
+[data-plugin-dialog="html-source"] > div:first-child {
+  align-items: center !important;
+  padding: 8px 12px !important;
+}
+
+[data-plugin-dialog="html-source"] > div:first-child h2 {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  line-height: 1.3 !important;
+}
+
+[data-plugin-dialog="html-source"] > div:first-child button {
+  padding: 4px !important;
+}
+
+[data-plugin-dialog="html-source"] > div:nth-child(2) {
+  padding: 0 !important;
+}

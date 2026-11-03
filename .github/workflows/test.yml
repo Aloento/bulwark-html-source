@@ -1,0 +1,31 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Bundle tests
+        run: node test.mjs
+
+      - name: Package
+        run: node pack.mjs
+
+      - name: Check the zip contains exactly manifest.json and index.js
+        run: |
+          unzip -l dist/*.zip
+          test "$(unzip -Z1 dist/*.zip | tr '\n' ' ')" = "manifest.json index.js "

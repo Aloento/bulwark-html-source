@@ -1,0 +1,19 @@
+{
+  "name": "bulwark-html-source",
+  "version": "1.0.13",
+  "private": true,
+  "description": "Raw HTML editing for the Bulwark Webmail composer: full-screen source editor, live preview, byte-exact sending.",
+  "license": "MIT",
+  "author": "Aloento",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Aloento/bulwark-html-source.git"
+  },
+  "scripts": {
+    "test": "node test.mjs",
+    "pack": "node pack.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
