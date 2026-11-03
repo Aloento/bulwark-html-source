@@ -31,12 +31,19 @@ const Row = kit.Row;
 const Text = kit.Text || 'span';
 const Button = kit.Button || 'button';
 const Textarea = kit.Textarea || 'textarea';
+const Input = kit.Input || 'input';
 
 // ─── storage keys ──────────────────────────────────────────────
 
 const K_DRAFT = 'src:'; // src:<composerId>  -> { html, armed, at }   panel state
 const K_ARM = 'arm:'; // arm:<composerId>  -> { html, text, subject, to, cc, bcc, at }
 const ARM_TTL = 12 * 60 * 60 * 1000;
+
+// A resend has no composer yet: the dialog opens first, the composer is created
+// afterwards, so the record cannot be keyed by composerId. It is keyed by the
+// subject instead and lives until the send hook eats it (or two hours pass).
+const K_RESEND = 'resend:'; // resend:<gen> -> { html, subject, to, cc, at }
+const RESEND_TTL = 2 * 60 * 60 * 1000;
 
 // ─── i18n ──────────────────────────────────────────────────────
 
@@ -62,7 +69,24 @@ const FALLBACK = {
   'toast.injected': '已改用 HTML 源码发送。',
   'toast.noMatch': '没找到匹配这封邮件的源码（主题或收件人变了），发送的是编辑器正文。',
   'placeholder': '<!doctype html>\n<html>\n  <body>\n    <p>你好</p>\n  </body>\n</html>',
-  'stat': '{chars} 字符 · {size}'
+  'stat': '{chars} 字符 · {size}',
+  'resend.action': '再次发送',
+  'resend.actionDesc': '取这封邮件的原始 HTML，改完再发一次。',
+  'resend.title': '再次发送',
+  'resend.to': '收件人',
+  'resend.cc': '抄送',
+  'resend.subject': '主题',
+  'resend.send': '在新撰写器中发送',
+  'resend.needTo': '至少填一个收件人。',
+  'resend.badTo': '这个地址不对：{addr}',
+  'resend.none': '这封邮件里没有可用的 HTML 正文。',
+  'resend.failed': '读不出这封邮件的原始内容。',
+  'resend.plain': '这封邮件没有 HTML 版本，已用纯文本接手。',
+  'resend.opened': '已在新撰写器里打开：正文是提示语，发出时会换成这段源码。',
+  'resend.openFailed': '打开撰写器失败，源码已留在对话框里。',
+  'resend.images': '内嵌图片已转成内联数据 {n} 张。',
+  'resend.imagesSkipped': '{n} 张内嵌图片太大，没有带过来。',
+  'toast.resend': '已按原始 HTML 发送（再次发送）。'
 };
 
 function t(key, vars) {
@@ -124,15 +148,22 @@ async function skeys() {
 // ─── addresses ─────────────────────────────────────────────────
 
 function addrOf(v) {
+  // JMAP gives { name, email } objects; composers hand over plain strings.
+  if (v && typeof v === 'object') {
+    return String(v.email || v.address || '').trim().toLowerCase();
+  }
   const s = String(v == null ? '' : v).trim();
   const m = /<([^>]+)>/.exec(s);
   return (m ? m[1] : s).trim().toLowerCase();
 }
 
 function addrList(v) {
+  if (v && typeof v === 'object' && !Array.isArray(v)) return [addrOf(v)].filter(Boolean);
   const arr = Array.isArray(v) ? v : String(v == null ? '' : v).split(/[,;]/);
   return arr.map(addrOf).filter(Boolean);
 }
+
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 function sameSet(a, b) {
   if (a.length !== b.length) return false;
@@ -259,6 +290,232 @@ function previewDoc(html) {
   );
 }
 
+// ─── raw message → HTML ────────────────────────────────────────
+// The host hands over the stored message as bytes (api.email.getRaw). What we
+// need back out of it is the text/html leaf, decoded byte for byte: parsing it
+// through a DOM would normalise the markup we are here to preserve.
+
+function binFromBuffer(buf) {
+  let u;
+  if (buf instanceof Uint8Array) u = buf;
+  else if (buf && typeof buf.byteLength === 'number') u = new Uint8Array(buf);
+  else if (typeof buf === 'string') return buf;
+  else return '';
+  let s = '';
+  const CH = 0x8000;
+  for (let i = 0; i < u.length; i += CH) {
+    s += String.fromCharCode.apply(null, u.subarray(i, Math.min(i + CH, u.length)));
+  }
+  return s;
+}
+
+function bytesOf(bin) {
+  const u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i) & 0xff;
+  return u;
+}
+
+function decodeBin(bin, charset) {
+  const label = String(charset || 'utf-8').trim().toLowerCase().replace(/^["']|["']$/g, '') || 'utf-8';
+  try {
+    return new TextDecoder(label).decode(bytesOf(bin));
+  } catch (e) {
+    // Unknown label: UTF-8 with replacement characters beats losing the body.
+    try {
+      return new TextDecoder('utf-8').decode(bytesOf(bin));
+    } catch (e2) {
+      return bin;
+    }
+  }
+}
+
+function parseEntity(bin) {
+  const headers = {};
+  let last = '';
+  let i = 0;
+  while (i < bin.length) {
+    let nl = bin.indexOf('\n', i);
+    if (nl < 0) nl = bin.length;
+    let line = bin.slice(i, nl);
+    if (line.charCodeAt(line.length - 1) === 13) line = line.slice(0, -1);
+    i = nl + 1;
+    if (!line) break;
+    if ((line.charAt(0) === ' ' || line.charAt(0) === '\t') && last) {
+      headers[last] = headers[last] + ' ' + line.trim();
+      continue;
+    }
+    const at = line.indexOf(':');
+    if (at > 0) {
+      last = line.slice(0, at).trim().toLowerCase();
+      headers[last] = line.slice(at + 1).trim();
+    } else {
+      last = '';
+    }
+  }
+  return { headers: headers, body: bin.slice(i) };
+}
+
+function mediaType(value) {
+  const s = String(value || '').trim().toLowerCase();
+  const at = s.indexOf(';');
+  return (at < 0 ? s : s.slice(0, at)).trim();
+}
+
+function headerParam(value, name) {
+  const s = String(value || '');
+  const re = new RegExp('(?:^|;)\\s*' + name + '\\s*=\\s*(?:"((?:[^"\\\\]|\\\\.)*)"|([^;\\s]+))', 'i');
+  const m = re.exec(s);
+  if (!m) return '';
+  return (m[1] != null ? m[1].replace(/\\(.)/g, '$1') : m[2]) || '';
+}
+
+function b64Decode(s) {
+  const clean = String(s || '').replace(/[^A-Za-z0-9+/=]/g, '');
+  if (!clean) return '';
+  try {
+    return atob(clean);
+  } catch (e) {
+    return '';
+  }
+}
+
+function qpDecode(s) {
+  const src = String(s || '').replace(/=\r?\n/g, '');
+  let out = '';
+  for (let i = 0; i < src.length; i++) {
+    const c = src.charAt(i);
+    if (c === '=' && i + 2 < src.length) {
+      const hex = src.slice(i + 1, i + 3);
+      if (/^[0-9a-f]{2}$/i.test(hex)) {
+        out += String.fromCharCode(parseInt(hex, 16));
+        i += 2;
+        continue;
+      }
+    }
+    out += c;
+  }
+  return out;
+}
+
+function transferBody(body, cte) {
+  const e = String(cte || '').trim().toLowerCase();
+  if (e === 'base64') return b64Decode(body);
+  if (e === 'quoted-printable') return qpDecode(body);
+  return String(body || '');
+}
+
+function splitMultipart(body, boundary) {
+  const delim = '--' + boundary;
+  const chunks = String(body || '').split(delim);
+  const out = [];
+  for (let i = 1; i < chunks.length; i++) {
+    let c = chunks[i];
+    if (c.slice(0, 2) === '--') break; // the closing delimiter
+    if (c.slice(0, 2) === '\r\n') c = c.slice(2);
+    else if (c.charAt(0) === '\n') c = c.slice(1);
+    // The newline in front of the delimiter belongs to the delimiter.
+    c = c.replace(/\r?\n$/, '');
+    out.push(c);
+  }
+  return out;
+}
+
+function collectParts(bin, out, depth) {
+  if ((depth || 0) > 12) return out;
+  const ent = parseEntity(bin);
+  const ctype = ent.headers['content-type'] || 'text/plain; charset=us-ascii';
+  const type = mediaType(ctype);
+  if (type.indexOf('multipart/') === 0) {
+    const boundary = headerParam(ctype, 'boundary');
+    if (!boundary) return out;
+    const raws = splitMultipart(ent.body, boundary);
+    for (let i = 0; i < raws.length; i++) collectParts(raws[i], out, (depth || 0) + 1);
+    return out;
+  }
+  const charset = headerParam(ctype, 'charset') || 'utf-8';
+  const raw = transferBody(ent.body, ent.headers['content-transfer-encoding']);
+  out.push({ type: type, charset: charset, raw: raw, text: decodeBin(raw, charset), headers: ent.headers });
+  return out;
+}
+
+/** The HTML body of a stored message; plain text is wrapped when there is none. */
+function htmlFromRaw(ab) {
+  const parts = collectParts(binFromBuffer(ab), [], 0);
+  let html = null;
+  let plain = null;
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
+    if (!html && p.type === 'text/html') html = p;
+    if (!plain && p.type === 'text/plain') plain = p;
+  }
+  if (html && html.text.trim()) return { html: html.text, plain: false };
+  if (plain && plain.text.trim()) {
+    const body = esc(plain.text).replace(/\r\n/g, '\n').replace(/\n/g, '<br>\n');
+    return {
+      html:
+        '<div style="font:14px/1.6 -apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,\'PingFang SC\',\'Microsoft YaHei\',sans-serif">' +
+        body +
+        '</div>',
+      plain: true
+    };
+  }
+  return { html: '', plain: true };
+}
+
+function escapeRe(s) {
+  return String(s == null ? '' : s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function cidKey(v) {
+  const s = String(v || '').trim();
+  const inner = /^<(.*)>$/.exec(s);
+  let out = inner ? inner[1] : s;
+  try {
+    out = decodeURIComponent(out);
+  } catch (e) {
+    /* keep it raw */
+  }
+  return out.toLowerCase();
+}
+
+/**
+ * An `src="cid:logo@x"` only renders while the blob is addressable. A resend
+ * cannot keep the CID: the new message gets fresh part ids, so the pictures are
+ * folded into the HTML as data: URIs instead.
+ */
+async function inflateInline(emailId, atts, html) {
+  const list = (atts || []).filter(function (a) {
+    return a && a.inline && a.cid && a.blobId;
+  });
+  const result = { html: html, used: 0, skipped: 0 };
+  if (!list.length) return result;
+  let budget = 3 * 1024 * 1024;
+  for (let i = 0; i < list.length; i++) {
+    const a = list[i];
+    const needle = new RegExp('cid:' + escapeRe(cidKey(a.cid)), 'gi');
+    if (!needle.test(result.html)) continue;
+    try {
+      const got = await api.email.getAttachment(emailId, a.blobId);
+      const bin = binFromBuffer(got && got.data);
+      if (!bin.length) {
+        result.skipped++;
+        continue;
+      }
+      if (bin.length > budget) {
+        result.skipped++;
+        continue;
+      }
+      budget -= bin.length;
+      result.html = result.html.replace(needle, 'data:' + ((got && got.type) || a.type || 'image/png') + ';base64,' + btoa(bin));
+      result.used++;
+    } catch (e) {
+      api.log.warn('inline image could not be read', e);
+      result.skipped++;
+    }
+  }
+  return result;
+}
+
 // ─── styles ────────────────────────────────────────────────────
 
 const ROOT = {
@@ -335,6 +592,10 @@ async function composerBody(composerId) {
 
 function SourcePanel(props) {
   const composerId = (props && props.composerId) || '';
+  // mode 'resend': opened from a stored message, so there is no composer yet.
+  // The recipients and subject are prefilled from the message and come back
+  // through onResult, where the caller opens the composer and arms the send.
+  const resendMode = !!(props && props.mode === 'resend');
   // A dialog slot gets no `draft` prop, so the composer's subject and
   // recipients are polled from the host instead: the arm record has to match
   // the message the send hook will see.
@@ -372,9 +633,12 @@ function SourcePanel(props) {
   const bccList = meta.bcc;
   const focusRequest = props && props.focusRequest;
 
-  const [source, setSource] = useState('');
+  const [source, setSource] = useState(resendMode && props && typeof props.html === 'string' ? props.html : '');
   const [view, setView] = useState('split');
-  const [armed, setArmed] = useState(false);
+  const [armed, setArmed] = useState(resendMode);
+  const [toText, setToText] = useState(resendMode ? String((props && props.to) || '') : '');
+  const [ccText, setCcText] = useState(resendMode ? String((props && props.cc) || '') : '');
+  const [subjText, setSubjText] = useState(resendMode ? String((props && props.subject) || '') : '');
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState('');
   const [note, setNote] = useState('');
@@ -564,6 +828,66 @@ function SourcePanel(props) {
   if (info.script) warnings.push(t('warn.script'));
   if (info.remote) warnings.push(t('warn.remote', { n: info.remote }));
   if (info.bytes > 100 * 1024) warnings.push(t('warn.size', { kb: Math.round(info.bytes / 1024) }));
+  if (resendMode && props && props.inlined) warnings.push(t('resend.images', { n: props.inlined }));
+  if (resendMode && props && props.skipped) warnings.push(t('resend.imagesSkipped', { n: props.skipped }));
+
+  const fieldRow = resendMode
+    ? h(
+        'div',
+        { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
+        h(Input, {
+          value: toText,
+          placeholder: t('resend.to'),
+          spellCheck: false,
+          onChange: function (e) {
+            setToText(e.target.value);
+          },
+          style: { flex: '2 1 260px', minWidth: 0 }
+        }),
+        h(Input, {
+          value: ccText,
+          placeholder: t('resend.cc'),
+          spellCheck: false,
+          onChange: function (e) {
+            setCcText(e.target.value);
+          },
+          style: { flex: '1 1 160px', minWidth: 0 }
+        }),
+        h(Input, {
+          value: subjText,
+          placeholder: t('resend.subject'),
+          spellCheck: false,
+          onChange: function (e) {
+            setSubjText(e.target.value);
+          },
+          style: { flex: '2 1 240px', minWidth: 0 }
+        })
+      )
+    : null;
+
+  const submitResend = function () {
+    const to = addrList(toText);
+    const cc = addrList(ccText);
+    if (!to.length) {
+      setNote(t('resend.needTo'));
+      return;
+    }
+    const all = to.concat(cc);
+    for (let i = 0; i < all.length; i++) {
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(all[i])) {
+        setNote(t('resend.badTo', { addr: all[i] }));
+        return;
+      }
+    }
+    if (typeof props.onResult !== 'function') return;
+    props.onResult({
+      to: to,
+      cc: cc,
+      subject: subjText.trim(),
+      html: unwrapDocument(source),
+      attachments: (props && props.attachments) || []
+    });
+  };
 
   const panes = h(
     'div',
@@ -648,13 +972,24 @@ function SourcePanel(props) {
           }
         },
         h(Text, { size: 'xs', tone: 'muted' }, statLine),
-        button(t('btn.pull'), loadBody, busy === 'pull', 'secondary'),
-        button(t('btn.push'), pushBody, busy === 'push', 'primary'),
+        resendMode
+          ? h(
+              Button,
+              {
+                size: 'sm',
+                variant: 'primary',
+                onClick: submitResend
+              },
+              t('resend.send')
+            )
+          : button(t('btn.pull'), loadBody, busy === 'pull', 'secondary'),
+        resendMode ? null : button(t('btn.push'), pushBody, busy === 'push', 'primary'),
         armed && Badge ? h(Badge, { tone: 'success' }, t('arm.on')) : null,
         h(Text, { size: 'xs', tone: 'muted' }, t('arm.label')),
         Switch
           ? h(Switch, {
               checked: armed,
+              disabled: resendMode,
               onChange: function (next) {
                 setArmed(!!next);
               }
@@ -663,6 +998,7 @@ function SourcePanel(props) {
       )
     ),
     note ? h(Text, { size: 'xs', tone: 'muted' }, note) : null,
+    fieldRow,
     panes,
     warnings.length
       ? h(Alert, { tone: 'warning' }, h(Text, { size: 'xs' }, warnings.join('  ')))
@@ -714,9 +1050,43 @@ async function findArm(email) {
   return null;
 }
 
+/**
+ * A resend record has to survive the composer being opened with it, and the
+ * composer is created after the dialog closes. Matching is by subject only:
+ * that is the one field the user is most likely to keep, and it is what lets
+ * them rewrite the recipients (or add some) in the composer before sending.
+ */
+async function findResend(email) {
+  const keys = (await skeys()).filter(function (k) {
+    return typeof k === 'string' && k.indexOf(K_RESEND) === 0;
+  });
+  if (!keys.length) return null;
+  const now = Date.now();
+  const subject = String((email && email.subject) || '').trim();
+  for (const key of keys) {
+    const rec = await sget(key);
+    if (!rec || typeof rec.html !== 'string' || !rec.html.trim()) {
+      await sdel(key);
+      continue;
+    }
+    if (now - (rec.at || 0) > RESEND_TTL) {
+      await sdel(key);
+      continue;
+    }
+    if (!subject || String(rec.subject || '').trim() !== subject) continue;
+    return { key: key, rec: rec };
+  }
+  return null;
+}
+
 async function transformOutgoing(email) {
   const msg = email || {};
-  const hit = await findArm(msg);
+  let hit = await findArm(msg);
+  let viaResend = false;
+  if (!hit) {
+    hit = await findResend(msg);
+    viaResend = !!hit;
+  }
   if (!hit) {
     say('warning', t('toast.noMatch'));
     return msg;
@@ -724,12 +1094,109 @@ async function transformOutgoing(email) {
   await sdel(hit.key);
   const html = hit.rec.html;
   const text = hit.rec.text || htmlToText(html);
-  say('info', t('toast.injected'));
+  say('info', viaResend ? t('toast.resend') : t('toast.injected'));
   const next = {};
   for (const k in msg) next[k] = msg[k];
   next.htmlBody = html;
   next.textBody = text;
   return next;
+}
+
+// ─── resend ────────────────────────────────────────────────────
+
+async function startResend(ev) {
+  const emailId = ev && ev.context && ev.context.emailId;
+  if (!emailId || !api.email || typeof api.email.getRaw !== 'function') {
+    say('error', t('resend.failed'));
+    return;
+  }
+  let view = null;
+  try {
+    view = await api.email.get(emailId);
+  } catch (e) {
+    api.log.warn('email.get failed', e);
+  }
+  let raw = null;
+  try {
+    raw = await api.email.getRaw(emailId);
+  } catch (e) {
+    api.log.warn('email.getRaw failed', e);
+  }
+  if (!raw) {
+    say('error', t('resend.failed'));
+    return;
+  }
+  const parsed = htmlFromRaw(raw);
+  if (!parsed.html.trim()) {
+    say('warning', t('resend.none'));
+    return;
+  }
+  if (parsed.plain) say('info', t('resend.plain'));
+
+  const atts = ((view && view.attachments) || []).filter(function (a) {
+    return a && a.blobId;
+  });
+  const inlined = await inflateInline(emailId, atts, parsed.html);
+  const carry = atts
+    .filter(function (a) {
+      return !a.inline && a.blobId;
+    })
+    .map(function (a) {
+      return { blobId: a.blobId, name: a.name, type: a.type, size: a.size };
+    });
+
+  const res = await api.ui.openDialog({
+    title: t('resend.title'),
+    slot: 'plugin-dialog',
+    extraProps: {
+      mode: 'resend',
+      html: inlined.html,
+      subject: String((view && view.subject) || ''),
+      to: addrList(view && view.to).join(', '),
+      cc: addrList(view && view.cc).join(', '),
+      attachments: carry,
+      inlined: inlined.used,
+      skipped: inlined.skipped
+    },
+    width: 1040,
+    fill: true
+  });
+  if (!res || typeof res.html !== 'string' || !res.html.trim()) return;
+
+  const to = addrList(res.to);
+  const cc = addrList(res.cc);
+  if (!to.length) {
+    say('warning', t('resend.needTo'));
+    return;
+  }
+  const bad = to.concat(cc).filter(function (a) {
+    return !EMAIL_RE.test(a);
+  });
+  if (bad.length) {
+    say('warning', t('resend.badTo', { addr: bad[0] }));
+    return;
+  }
+
+  const key = K_RESEND + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const rec = { html: res.html, subject: String(res.subject || ''), to: to, cc: cc, at: Date.now() };
+  if (!(await sset(key, rec))) {
+    say('error', t('resend.openFailed'));
+    return;
+  }
+  try {
+    await api.compose.open({
+      to: to,
+      cc: cc,
+      subject: rec.subject,
+      body: t('arm.notice'),
+      attachments: Array.isArray(res.attachments) && res.attachments.length ? res.attachments : carry
+    });
+    say('info', t('resend.opened'));
+  } catch (e) {
+    api.log.error('compose.open failed', e);
+    await sdel(key);
+    say('error', t('resend.openFailed'));
+  }
 }
 
 const hooks = {
@@ -752,18 +1219,29 @@ const hooks = {
   },
 
   async onAction(ev) {
-    if (!ev || ev.actionId !== 'html-source.toggle') return;
-    const composerId = ev.context && ev.context.composerId;
-    try {
-      await api.ui.openDialog({
-        title: t('panel.title'),
-        slot: 'plugin-dialog',
-        extraProps: { composerId: composerId || '' },
-        width: 1040,
-        fill: true
-      });
-    } catch (e) {
-      api.log.warn('openDialog failed', e);
+    if (!ev) return;
+    if (ev.actionId === 'html-source.toggle') {
+      const composerId = ev.context && ev.context.composerId;
+      try {
+        await api.ui.openDialog({
+          title: t('panel.title'),
+          slot: 'plugin-dialog',
+          extraProps: { composerId: composerId || '' },
+          width: 1040,
+          fill: true
+        });
+      } catch (e) {
+        api.log.warn('openDialog failed', e);
+      }
+      return;
+    }
+    if (ev.actionId === 'html-source.resend') {
+      try {
+        await startResend(ev);
+      } catch (e) {
+        api.log.error('resend failed', e);
+        say('error', t('resend.failed'));
+      }
     }
   }
 };
@@ -783,6 +1261,37 @@ async function activate() {
   } catch (e) {
     api.log.warn('setActions failed', e);
   }
+  try {
+    await api.ui.setActions('reader-actions', [
+      {
+        id: 'html-source.resend',
+        label: t('resend.action'),
+        icon: 'send',
+        description: t('resend.actionDesc')
+      }
+    ]);
+  } catch (e) {
+    api.log.warn('setActions (reader-actions) failed', e);
+  }
 }
 
-module.exports = { activate: activate, slots: slots, hooks: hooks };
+module.exports = {
+  activate: activate,
+  slots: slots,
+  hooks: hooks,
+  // Reached by test.mjs only; the host reads activate/slots/hooks and ignores
+  // anything else the bundle exports.
+  _test: {
+    htmlFromRaw: htmlFromRaw,
+    parseEntity: parseEntity,
+    collectParts: collectParts,
+    headerParam: headerParam,
+    qpDecode: qpDecode,
+    b64Decode: b64Decode,
+    mediaType: mediaType,
+    cidKey: cidKey,
+    findResend: findResend,
+    transformOutgoing: transformOutgoing,
+    K_RESEND: K_RESEND
+  }
+};

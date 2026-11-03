@@ -16,6 +16,9 @@ very last moment — while Send is already in flight.
 - **Source / Split / Preview** — preview renders inside a sandboxed iframe, live as you type.
 - **Send this source** — the HTML you see is the `text/html` part; the editor body is replaced
   with a notice so you can never mistake one for the other.
+- **Send again** — open a message you already sent, press **Send again** in the reader toolbar,
+  edit its original HTML, change the recipients, send. The markup comes back out as it went in,
+  not as Tiptap's idea of it.
 - **No privileged tier, no raw MIME.** It uses the ordinary outgoing-message transform hook.
 - **Chinese and Traditional Chinese UI** included (plus English).
 
@@ -82,15 +85,44 @@ If the subject or the recipients changed after you armed it, the message is **no
 you get a toast saying no source matched, and the editor body is sent. That is deliberate —
 better to send the wrong body loudly than to send old HTML silently.
 
+## Send again (resend an already-sent HTML message)
+
+Open a message you sent, then press **Send again** in the reader's toolbar. The plugin asks the
+host for the message's **raw RFC 5322 source** (`api.email.getRaw`), parses it itself — multipart
+tree, base64 and quoted-printable, `charset` — and puts the `text/html` part in the same
+full-screen dialog, this time with **To / Cc / Subject** fields at the top.
+
+1. Edit the HTML if you want to; the preview updates as you type.
+2. Change the recipients — that is the point: the source stays, the audience doesn't.
+3. Press **Send in a new composer**. The composer opens with the recipients, the subject and a
+   notice in the body; the source itself waits in the plugin's record.
+4. Change anything else in the composer (signature, attachments) and press **Send**. The message
+   goes out with your HTML.
+
+Things worth knowing:
+
+- **Inline images (`cid:`) are folded into the HTML as `data:` URIs.** A resent message gets
+  fresh MIME part ids, so the old `cid:` references would dangle; the plugin fetches each inline
+  attachment (up to a 3 MB budget) and inlines it. If a picture does not fit, the dialog says so.
+- **Attachments are carried over by blob reference**, so they are the same bytes as the original.
+- **The waiting record is matched by subject alone**, on purpose: the composer's body is a notice,
+  and you are expected to change the recipients there. Change the *subject* in the composer and
+  the plugin steps aside (toast, and the notice is what would be sent).
+- The record lives for 2 hours and is deleted on the first matching send, or when that composer
+  closes.
+
 ## Permissions
 
 | Permission | Why |
 |---|---|
 | `ui:composer-toolbar` | the `</>` button in the composer bar |
+| `ui:toolbar` | the **Send again** button in the reader toolbar |
 | `ui:observe` | rendering the dialog slot |
 | `compose:read` | reading the body and the composer snapshot |
 | `compose:write` | swapping the body for the notice and back |
-| `email:read` | `onAfterEmailSend`, to clear the record if a send fails |
+| `compose:open` | opening the composer that a resent message is assembled in |
+| `email:read` | reading the sent message (recipients, subject, attachments), `onAfterEmailSend` |
+| `email:blob-read` | the raw message source and inline images |
 | `email:send` | `onTransformOutgoingEmail`, the hook that replaces the body |
 
 No `tier: privileged`, no `crypto:full`, no `api.jmap.sendRaw`. The plugin never touches MIME,
@@ -103,7 +135,7 @@ it.
 - **Editor → source is lossy.** Read body gives you what Tiptap serialised, correct as far as
   Tiptap is concerned but not the original markup.
 - **Armed messages are matched by subject + recipients.** Change either one before sending and
-  the plugin steps aside.
+  the plugin steps aside. (A resent message is matched by subject only — see above.)
 - **The plain-text alternative is generated**, by stripping tags, so text-only readers see a
   readable approximation rather than an alternative you wrote.
 - **Attachments are untouched** — they are added by the host after the transform, so inline
@@ -120,7 +152,7 @@ it.
 ## Build, test, package
 
 ```bash
-node test.mjs      # 19 assertions, runs the bundle in a sandbox shaped like the host's
+node test.mjs      # 52 assertions, runs the bundle in a sandbox shaped like the host's
 node pack.mjs      # writes dist/html-source-<version>.zip and validates the size limits
 ```
 
@@ -128,6 +160,9 @@ node pack.mjs      # writes dist/html-source-<version>.zip and validates the siz
 `module`, `exports`, `require`, `React`, `ReactDOM`, `JsxRuntime` and `console` — then drives
 the hooks with fake storage and a fake composer, asserting that a matching send is replaced
 byte for byte, that an unmatched one is left alone, and that records are consumed and pruned.
+It also feeds the MIME parser real multipart bodies (base64, quoted-printable, nested
+`multipart/alternative`, UTF-8 subjects, folded headers) and checks the resend side of the
+transform, which is matched by subject alone.
 The host's wrapper is the reason `index.js` never declares `React` itself: a `const React`
 at the top level of the bundle collides with the parameter and the whole bundle fails to
 parse. That bug is in this repository's history; the test now reproduces it.

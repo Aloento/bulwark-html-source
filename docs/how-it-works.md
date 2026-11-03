@@ -79,6 +79,36 @@ attachments, pending }`) every two seconds while the dialog is open.
 The arm record is written when the switch is turned on, not when the dialog opens, so closing
 the dialog without arming leaves nothing behind.
 
+## Sending again: picking the HTML out of a sent message
+
+A resent message starts from the *raw* source, not from the reader's rendered body — the reader
+only has `EmailReadView`, and that carries `text` and `attachments`, never `htmlBody`.
+
+1. `reader-actions` (`lib/plugin-slot-catalog.ts:82`, permission `ui:toolbar`, props
+   `{ emailId, accountId }`) gives the action its `ev.emailId`.
+2. `api.email.get(emailId)` supplies recipients, subject and the attachment list (each with a
+   `blobId`, so attachments travel to the new message as references).
+3. `api.email.getRaw(emailId)` (`email:blob-read`, ≤25 MB) returns the complete RFC 5322 message
+   as an `ArrayBuffer`. The plugin parses it itself — `parseEntity`, `splitMultipart`,
+   `collectParts`, `b64Decode`, `qpDecode`, `decodeBin` — because no part of the host exposes
+   the HTML of a stored message to a plugin. Depth is capped at 12 so a pathological message
+   cannot spin.
+4. Inline parts are found by `Content-ID`; `api.email.getAttachment(emailId, blobId)` brings the
+   bytes back and the `cid:` references are rewritten to `data:` URIs (3 MB budget). This is
+   necessary: the resent message is assembled as a *new* message, so old part ids mean nothing.
+5. The dialog opens in `resend` mode with To / Cc / Subject fields. Its result is a plain object
+   (`{ to, cc, subject, html, attachments }`) resolved by `api.ui.openDialog`.
+6. `api.compose.open({ to, cc, subject, body: <notice>, attachments })` opens a real composer.
+   The body is the same notice the switch uses; the real HTML waits in `resend:<id>` storage.
+7. On Send, `onTransformOutgoingEmail` runs `findArm` first (composer id, subject, recipients)
+   and then `findResend` — **subject equality only**, because the whole point of the resend flow
+   is that the recipients change in the composer. A hit replaces `htmlBody`, deletes the record
+   and toasts; a miss leaves the message alone and says so.
+
+One consequence worth stating: a resent message can be edited in the composer, but only through
+the plugin's dialog. If you edit the *subject* in the composer, the record no longer matches and
+the notice would be sent — loudly, with a toast.
+
 ## Two things that bite plugin authors
 
 - **The host wrapper declares its own identifiers.** `lib/plugin-sandbox/runtime.tsx:1343`

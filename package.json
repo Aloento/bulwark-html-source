@@ -1,8 +1,8 @@
 {
   "name": "bulwark-html-source",
-  "version": "1.0.13",
+  "version": "1.1.5",
   "private": true,
-  "description": "Raw HTML editing for the Bulwark Webmail composer: full-screen source editor, live preview, byte-exact sending.",
+  "description": "Raw HTML editing for Bulwark Webmail: full-screen source editor, live preview, byte-exact sending, and Send again for HTML you already sent.",
   "license": "MIT",
   "author": "Aloento",
   "repository": {

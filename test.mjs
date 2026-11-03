@@ -51,8 +51,44 @@ const api = {
     error: () => {}
   },
   log: { debug() {}, info() {}, warn() {}, error() {} },
-  ui: { async setActions() {}, async togglePanel() {}, async openPanel() {}, print() {} },
-  composer: { async getBody() { return { html: '<p>editor</p>', text: 'editor' }; } }
+  ui: {
+    async setActions(surface, actions) {
+      (api.actions[surface] = api.actions[surface] || []).push(...actions);
+    },
+    async togglePanel() {
+      return null;
+    },
+    async openPanel() {},
+    async openDialog(opts) {
+      api.dialogs.push(opts);
+      return api.dialogResult;
+    },
+    print() {}
+  },
+  composer: { async getBody() { return { html: '<p>editor</p>', text: 'editor' }; } },
+  email: {
+    async get() {
+      return api.message;
+    },
+    async getRaw() {
+      return api.raw;
+    },
+    async getAttachment(id, blobId) {
+      return { name: blobId, type: 'image/png', size: 3, data: new Uint8Array([1, 2, 3]).buffer };
+    }
+  },
+  compose: {
+    async open(opts) {
+      api.opened.push(opts);
+      return 'navigated';
+    }
+  },
+  actions: {},
+  dialogs: [],
+  dialogResult: null,
+  opened: [],
+  message: null,
+  raw: null
 };
 
 const React = {
@@ -62,7 +98,16 @@ const React = {
   useRef() {},
   useState() {}
 };
-const kit = { Segmented: 'Segmented', Switch: 'Switch', Alert: 'Alert', Row: 'Row', Text: 'Text', Button: 'Button', Textarea: 'Textarea' };
+const kit = {
+  Segmented: 'Segmented',
+  Switch: 'Switch',
+  Alert: 'Alert',
+  Row: 'Row',
+  Text: 'Text',
+  Button: 'Button',
+  Textarea: 'Textarea',
+  Input: 'Input'
+};
 
 const mod = { exports: {} };
 const ctx = vm.createContext({
@@ -76,6 +121,9 @@ const ctx = vm.createContext({
   },
   console,
   TextEncoder,
+  TextDecoder,
+  atob,
+  btoa,
   setTimeout,
   clearTimeout
 });
@@ -199,6 +247,195 @@ console.log('onAfterEmailSend clears the record');
   await api.storage.set('arm:c7', arm);
   await hooks.onAfterEmailSend({ composerId: 'c7' });
   ok((await api.storage.keys()).length === 0, 'record dropped after send');
+}
+
+console.log('activate registers both surfaces');
+{
+  await plugin.activate();
+  const bar = api.actions['composer-toolbar-actions'] || [];
+  const reader = api.actions['reader-actions'] || [];
+  ok(bar.length === 1 && bar[0].id === 'html-source.toggle', 'composer toolbar action');
+  ok(reader.length === 1 && reader[0].id === 'html-source.resend', 'reader action');
+  ok(/^[A-Za-z0-9-]{1,40}$/.test(reader[0].icon), 'reader icon name is legal');
+}
+
+// ─── raw MIME ──────────────────────────────────────────────────
+
+const T = plugin._test;
+const rawOf = (s) => new Uint8Array(Buffer.from(s, 'utf8'));
+
+console.log('mime: multipart/alternative, base64 UTF-8');
+{
+  const html = '<div style="color:#b00">你好，报价单</div>';
+  const raw = [
+    'From: a@example.com',
+    'Subject: =?utf-8?B?5oql5Lu35Y2V?=',
+    'MIME-Version: 1.0',
+    'Content-Type: multipart/alternative; boundary="b1"',
+    '',
+    '--b1',
+    'Content-Type: text/plain; charset=utf-8',
+    'Content-Transfer-Encoding: base64',
+    '',
+    Buffer.from('你好，报价单', 'utf8').toString('base64'),
+    '--b1',
+    'Content-Type: text/html; charset=utf-8',
+    'Content-Transfer-Encoding: base64',
+    '',
+    Buffer.from(html, 'utf8').toString('base64'),
+    '--b1--',
+    ''
+  ].join('\r\n');
+  const out = T.htmlFromRaw(rawOf(raw));
+  ok(out.html === html, 'html body decoded verbatim');
+  ok(out.plain === false, 'not flagged as plain-only');
+}
+
+console.log('mime: quoted-printable + iso-8859-1');
+{
+  const raw = [
+    'Content-Type: text/html; charset=iso-8859-1',
+    'Content-Transfer-Encoding: quoted-printable',
+    '',
+    '<p>caf=E9 =E0 Paris</p>'
+  ].join('\r\n');
+  const out = T.htmlFromRaw(rawOf(raw));
+  ok(out.html === '<p>café à Paris</p>', 'QP bytes decoded with the part charset', JSON.stringify(out.html));
+}
+
+console.log('mime: nested multipart/mixed finds the html leaf');
+{
+  const html = '<table><tr><td>inner</td></tr></table>';
+  const raw = [
+    'Content-Type: multipart/mixed; boundary=outer',
+    '',
+    '--outer',
+    'Content-Type: text/plain; charset=utf-8',
+    '',
+    'plain fallback',
+    '--outer',
+    'Content-Type: multipart/alternative; boundary=inner',
+    '',
+    '--inner',
+    'Content-Type: text/plain; charset=utf-8',
+    '',
+    'inner text',
+    '--inner',
+    'Content-Type: text/html; charset=utf-8',
+    '',
+    html,
+    '--inner--',
+    '--outer--',
+    ''
+  ].join('\r\n');
+  const out = T.htmlFromRaw(rawOf(raw));
+  ok(out.html === html, 'deep html preferred over the plain siblings');
+}
+
+console.log('mime: text/plain only is wrapped, not dropped');
+{
+  const raw = ['Content-Type: text/plain; charset=utf-8', '', '第一行', '第二行 <b>'].join('\r\n');
+  const out = T.htmlFromRaw(rawOf(raw));
+  ok(out.plain === true, 'flagged plain');
+  ok(out.html.indexOf('第一行<br>') >= 0, 'line breaks kept');
+  ok(out.html.indexOf('&lt;b&gt;') >= 0, 'text escaped, not treated as markup');
+}
+
+console.log('mime: helper edges');
+{
+  ok(T.mediaType('Multipart/Alternative; boundary=x') === 'multipart/alternative', 'media type lowercased');
+  ok(T.headerParam('text/plain; charset="utf-8"', 'charset') === 'utf-8', 'quoted param');
+  ok(T.b64Decode('aGVs\nbG8=') === 'hello', 'base64 with line breaks');
+  ok(T.qpDecode('a=\r\nb') === 'ab', 'soft line break');
+  ok(T.cidKey('<Logo@X>') === 'logo@x', 'cid normalised');
+}
+
+// ─── resend ────────────────────────────────────────────────────
+
+console.log('resend: matching ignores the recipients');
+{
+  store.clear();
+  toasts.length = 0;
+  const html = '<div style="border:2px solid #0a0">raw</div>';
+  await api.storage.set('resend:r1', { html, subject: '报价单 3 月', to: ['old@example.com'], cc: [], at: Date.now() });
+  const out = await hooks.onTransformOutgoingEmail({
+    ...mail,
+    subject: '报价单 3 月',
+    to: ['new@example.com'],
+    htmlBody: '<p>notice</p>'
+  });
+  ok(out.htmlBody === html, 'source wins although the recipient changed');
+  ok(toasts.some((x) => x[0] === 'info' && x[1].indexOf('HTML') >= 0), 'resend toast');
+  ok((await api.storage.keys()).length === 0, 'record consumed');
+}
+
+console.log('resend: a different subject is not hijacked');
+{
+  store.clear();
+  const html = '<div>raw</div>';
+  await api.storage.set('resend:r2', { html, subject: '报价单 3 月', to: [], cc: [], at: Date.now() });
+  const out = await hooks.onTransformOutgoingEmail({ ...mail, subject: '别的东西' });
+  ok(out.htmlBody === '<p>editor</p>', 'other subjects keep the editor body');
+  ok((await api.storage.keys()).length === 1, 'record survives for its own subject');
+}
+
+console.log('resend: expired records are pruned');
+{
+  store.clear();
+  await api.storage.set('resend:r3', { html: '<div>raw</div>', subject: '测试 HTML', to: [], cc: [], at: 0 });
+  const out = await hooks.onTransformOutgoingEmail({ ...mail });
+  ok(out.htmlBody === '<p>editor</p>', 'stale resend ignored');
+  ok((await api.storage.keys()).length === 0, 'stale resend removed');
+}
+
+console.log('resend: action reads the message and opens the composer');
+{
+  store.clear();
+  api.dialogs.length = 0;
+  api.opened.length = 0;
+  const html = '<section><h1 style="color:#c00">RAW</h1></section>';
+  const raw = ['Content-Type: text/html; charset=utf-8', '', html].join('\r\n');
+  api.raw = rawOf(raw);
+  api.message = {
+    subject: '季度报价',
+    to: [{ name: 'A', email: 'a@example.com' }],
+    cc: [],
+    attachments: [{ blobId: 'b1', name: 'p.pdf', type: 'application/pdf', size: 10, inline: false }]
+  };
+  api.dialogResult = { to: 'b@example.com, c@example.com', cc: '', subject: '季度报价', html };
+  await hooks.onAction({ actionId: 'html-source.resend', context: { emailId: 'e1' } });
+  const dlg = api.dialogs[0];
+  ok(!!dlg && dlg.extraProps.mode === 'resend', 'dialog opened in resend mode');
+  ok(!!dlg && dlg.extraProps.html === html, 'raw html handed to the dialog');
+  ok(!!dlg && dlg.extraProps.to === 'a@example.com', 'recipients prefilled from the message');
+  ok(api.opened.length === 1, 'composer opened once');
+  const opened = api.opened[0];
+  ok(JSON.stringify(opened.to) === JSON.stringify(['b@example.com', 'c@example.com']), 'user-edited recipients win');
+  ok(opened.body !== html && opened.body.length > 0, 'composer body is the notice, not the html');
+  ok(opened.attachments.length === 1 && opened.attachments[0].blobId === 'b1', 'attachments carried over');
+  const keys = (await api.storage.keys()).filter((k) => k.indexOf('resend:') === 0);
+  ok(keys.length === 1, 'resend record armed for the send hook');
+}
+
+console.log('resend: cancelling the dialog arms nothing');
+{
+  store.clear();
+  api.dialogs.length = 0;
+  api.opened.length = 0;
+  api.dialogResult = null;
+  await hooks.onAction({ actionId: 'html-source.resend', context: { emailId: 'e1' } });
+  ok(api.opened.length === 0, 'no composer without a result');
+  ok((await api.storage.keys()).length === 0, 'nothing left behind');
+}
+
+console.log('resend: a bad recipient is refused before any composer opens');
+{
+  store.clear();
+  api.dialogs.length = 0;
+  api.opened.length = 0;
+  api.dialogResult = { to: 'not-an-address', cc: '', subject: 'x', html: '<p>x</p>' };
+  await hooks.onAction({ actionId: 'html-source.resend', context: { emailId: 'e1' } });
+  ok(api.opened.length === 0, 'composer stays closed');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
