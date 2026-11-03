@@ -86,7 +86,23 @@ const FALLBACK = {
   'resend.openFailed': '打开撰写器失败，源码已留在对话框里。',
   'resend.images': '内嵌图片已转成内联数据 {n} 张。',
   'resend.imagesSkipped': '{n} 张内嵌图片太大，没有带过来。',
-  'toast.resend': '已按原始 HTML 发送（再次发送）。'
+  'toast.resend': '已按原始 HTML 发送（再次发送）。',
+  'pane.source': 'HTML',
+  'pane.preview': '渲染预览',
+  'view.mailWidth': '600 px',
+  'view.fullWidth': '全宽',
+  'resend.bcc': '密送',
+  'resend.addCc': '+ 抄送',
+  'resend.addBcc': '+ 密送',
+  'resend.toHint': '收件人邮箱，回车确认',
+  'resend.ccHint': '抄送邮箱，回车确认',
+  'resend.bccHint': '密送邮箱，回车确认',
+  'resend.subjectHint': '主题',
+  'resend.attachments': '附件',
+  'resend.remove': '移除',
+  'resend.removeAtt': '不带这个附件',
+  'hint.enter': 'Ctrl+Enter 直接执行',
+  'hint.pull': '把撰写器里的正文读进来'
 };
 
 function t(key, vars) {
@@ -530,7 +546,54 @@ const ROOT = {
   boxSizing: 'border-box'
 };
 
-const PANE = { display: 'flex', flex: '1 1 0', minWidth: 0, minHeight: 0 };
+const BAR = { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' };
+
+const BAR_RIGHT = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  marginLeft: 'auto',
+  flexWrap: 'wrap',
+  justifyContent: 'flex-end',
+  minWidth: 0,
+  flexShrink: 1
+};
+
+const ARM_BOX = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  marginLeft: 2,
+  flexShrink: 0
+};
+
+const PANES = { display: 'flex', gap: 8, flex: '1 1 0', minHeight: 0 };
+
+const PANE_BOX = {
+  display: 'flex',
+  flexDirection: 'column',
+  flex: '1 1 0',
+  minWidth: 0,
+  minHeight: 0,
+  border: '1px solid rgba(127,127,127,0.24)',
+  borderRadius: 8,
+  overflow: 'hidden'
+};
+
+const PANE_HEAD = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  height: 26,
+  padding: '0 8px',
+  flex: '0 0 auto',
+  borderBottom: '1px solid rgba(127,127,127,0.18)',
+  background: 'rgba(127,127,127,0.06)',
+  fontSize: 11,
+  fontWeight: 600,
+  letterSpacing: '0.04em',
+  color: 'rgba(127,127,127,0.95)'
+};
 
 const EDITOR = {
   flex: '1 1 0',
@@ -539,10 +602,13 @@ const EDITOR = {
   minHeight: 0,
   resize: 'none',
   boxSizing: 'border-box',
-  padding: '8px 10px',
+  border: 0,
+  outline: 'none',
+  background: 'transparent',
+  padding: '10px 12px',
   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
   fontSize: 13,
-  lineHeight: 1.5,
+  lineHeight: 1.55,
   tabSize: 2
 };
 
@@ -552,19 +618,93 @@ const EMPTY_PANE = {
   justifyContent: 'center',
   flex: '1 1 0',
   minHeight: 0,
-  border: '1px dashed rgba(127,127,127,0.24)',
-  borderRadius: 6,
   padding: 16,
   textAlign: 'center'
 };
 
-const FRAME = {
-  width: '100%',
-  height: '100%',
-  border: '1px solid rgba(127,127,127,0.28)',
-  borderRadius: 8,
-  background: '#ffffff'
+const PREVIEW_WRAP = {
+  flex: '1 1 0',
+  minHeight: 0,
+  overflow: 'auto',
+  display: 'flex',
+  justifyContent: 'center',
+  background: 'rgba(127,127,127,0.05)'
 };
+
+const FIELD_ROW = { display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' };
+
+const FIELD_LABEL = {
+  flex: '0 0 46px',
+  paddingTop: 6,
+  fontSize: 11.5,
+  fontWeight: 600,
+  letterSpacing: '0.02em',
+  color: 'rgba(127,127,127,0.95)'
+};
+
+const CHIP_BOX = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  flexWrap: 'wrap',
+  minHeight: 30,
+  padding: '3px 6px',
+  borderRadius: 6,
+  border: '1px solid rgba(127,127,127,0.24)'
+};
+
+const CHIP = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 2,
+  maxWidth: 280,
+  padding: '2px 2px 2px 8px',
+  borderRadius: 999,
+  background: 'rgba(127,127,127,0.14)',
+  fontSize: 12,
+  lineHeight: '18px'
+};
+
+const CHIP_TEXT = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+
+const CHIP_X = {
+  border: 0,
+  background: 'transparent',
+  color: 'inherit',
+  cursor: 'pointer',
+  fontSize: 15,
+  lineHeight: '15px',
+  padding: '0 4px',
+  opacity: 0.65
+};
+
+const CHIP_INPUT = {
+  flex: '1 1 140px',
+  minWidth: 120,
+  border: 0,
+  outline: 'none',
+  background: 'transparent',
+  font: 'inherit',
+  fontSize: 13,
+  padding: '4px 2px',
+  color: 'inherit'
+};
+
+const HINT = { fontSize: 11.5, color: 'rgba(127,127,127,0.95)' };
+
+const LINK_BTN = {
+  border: 0,
+  background: 'transparent',
+  color: 'inherit',
+  cursor: 'pointer',
+  padding: '0 2px',
+  font: 'inherit',
+  fontSize: 11,
+  textDecoration: 'underline',
+  textUnderlineOffset: 2
+};
+
+const UI_KEY = 'ui:'; // ui: -> { view, width }   remembered across dialogs
 
 // ─── panel ─────────────────────────────────────────────────────
 
@@ -588,6 +728,116 @@ async function composerBody(composerId) {
     api.log.warn('composer.getBody failed', e);
     return null;
   }
+}
+
+// One row per address field: pills for what is already committed, a bare input
+// for the next one. Enter, comma, semicolon or blur commits; Backspace on an
+// empty input takes the last pill back out. Bad addresses stay in the input with
+// an error under it rather than silently disappearing.
+function ChipsEditor(props) {
+  const value = Array.isArray(props.value) ? props.value : [];
+  const [text, setText] = useState('');
+  const [err, setErr] = useState('');
+
+  const commit = function (raw) {
+    const parts = String(raw || '')
+      .split(/[,;\s]+/)
+      .filter(function (x) {
+        return x;
+      });
+    if (!parts.length) return;
+    const next = value.slice();
+    let bad = '';
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i].trim();
+      if (!EMAIL_RE.test(p)) {
+        bad = p;
+        continue;
+      }
+      if (next.indexOf(p) < 0) next.push(p);
+    }
+    setErr(bad ? t('resend.badTo', { addr: bad }) : '');
+    setText(bad);
+    if (next.length !== value.length) props.onChange(next);
+  };
+
+  const onKeyDown = function (e) {
+    if (e.key === 'Enter' || e.key === ' ' || e.key === ',' || e.key === ';') {
+      if (text.trim()) {
+        e.preventDefault();
+        commit(text);
+      }
+      return;
+    }
+    if (e.key === 'Backspace' && !text && value.length) {
+      e.preventDefault();
+      props.onChange(value.slice(0, -1));
+      setErr('');
+      return;
+    }
+    if (e.key === 'Escape') {
+      setText('');
+      setErr('');
+    }
+  };
+
+  return h(
+    'div',
+    { style: { flex: '1 1 260px', minWidth: 0 } },
+    h(
+      'div',
+      { style: CHIP_BOX },
+      value.map(function (a) {
+        return h(
+          'span',
+          { key: a, style: CHIP, title: a },
+          h('span', { style: CHIP_TEXT }, a),
+          h(
+            'button',
+            {
+              type: 'button',
+              style: CHIP_X,
+              title: t('resend.remove'),
+              'aria-label': t('resend.remove') + ' ' + a,
+              onClick: function () {
+                props.onChange(
+                  value.filter(function (x) {
+                    return x !== a;
+                  })
+                );
+              }
+            },
+            '×'
+          )
+        );
+      }),
+      h('input', {
+        value: text,
+        placeholder: value.length ? '' : props.placeholder,
+        spellCheck: false,
+        autoComplete: 'off',
+        onChange: function (e) {
+          setText(e.target.value);
+          setErr('');
+        },
+        onKeyDown: onKeyDown,
+        onBlur: function () {
+          if (text.trim()) commit(text);
+        },
+        style: CHIP_INPUT
+      })
+    ),
+    err ? h('div', { style: { fontSize: 11.5, color: '#c0392b', marginTop: 4 } }, err) : null
+  );
+}
+
+function PaneHead(props) {
+  return h(
+    'div',
+    { style: PANE_HEAD },
+    h('span', null, props.label),
+    props.right || null
+  );
 }
 
 function SourcePanel(props) {
@@ -635,14 +885,44 @@ function SourcePanel(props) {
 
   const [source, setSource] = useState(resendMode && props && typeof props.html === 'string' ? props.html : '');
   const [view, setView] = useState('split');
+  const [width, setWidth] = useState('mail');
   const [armed, setArmed] = useState(resendMode);
-  const [toText, setToText] = useState(resendMode ? String((props && props.to) || '') : '');
-  const [ccText, setCcText] = useState(resendMode ? String((props && props.cc) || '') : '');
+  // resend fields
+  const [rTo, setRTo] = useState(resendMode ? addrList(props && props.to) : []);
+  const [rCc, setRCc] = useState(resendMode ? addrList(props && props.cc) : []);
+  const [rBcc, setRBcc] = useState(resendMode ? addrList(props && props.bcc) : []);
   const [subjText, setSubjText] = useState(resendMode ? String((props && props.subject) || '') : '');
+  const [atts, setAtts] = useState(resendMode && Array.isArray(props.attachments) ? props.attachments.slice() : []);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState('');
   const [note, setNote] = useState('');
   const areaRef = useRef(null);
+
+  // remember which pane layout was last used
+  useEffect(function () {
+    let gone = false;
+    (async function () {
+      const ui = await sget(UI_KEY);
+      if (gone || !ui || typeof ui !== 'object') return;
+      if (ui.view === 'source' || ui.view === 'split' || ui.view === 'preview') setView(ui.view);
+      if (ui.width === 'mail' || ui.width === 'full') setWidth(ui.width);
+    })();
+    return function () {
+      gone = true;
+    };
+  }, []);
+
+  useEffect(
+    function () {
+      const id = setTimeout(function () {
+        sset(UI_KEY, { view: view, width: width });
+      }, 300);
+      return function () {
+        clearTimeout(id);
+      };
+    },
+    [view, width]
+  );
 
   // hydrate: saved source for this composer, else whatever the editor holds
   useEffect(function () {
@@ -796,7 +1076,7 @@ function SourcePanel(props) {
       }
       let html = typeof body.html === 'string' ? body.html : '';
       if (!html.trim() && typeof body.text === 'string' && body.text.trim()) {
-        html = '<p>' + esc(body.text).replace(/\n/g, '<br>') + '</p>';
+        html = '<p>' + esc(body.text).replace(/\\n/g, '<br>') + '</p>';
       }
       if (!html.trim()) {
         setNote(t('note.pullEmpty'));
@@ -824,6 +1104,41 @@ function SourcePanel(props) {
     }
   };
 
+  const submitResend = function () {
+    const all = rTo.concat(rCc).concat(rBcc);
+    if (!rTo.length) {
+      setNote(t('resend.needTo'));
+      return;
+    }
+    for (let i = 0; i < all.length; i++) {
+      if (!EMAIL_RE.test(all[i])) {
+        setNote(t('resend.badTo', { addr: all[i] }));
+        return;
+      }
+    }
+    if (typeof props.onResult !== 'function') return;
+    props.onResult({
+      to: rTo.slice(),
+      cc: rCc.slice(),
+      bcc: rBcc.slice(),
+      subject: subjText.trim(),
+      html: unwrapDocument(source),
+      attachments: atts
+    });
+  };
+
+  const primary = function () {
+    if (resendMode) submitResend();
+    else pushBody();
+  };
+
+  const onKey = function (e) {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      primary();
+    }
+  };
+
   const warnings = [];
   if (info.script) warnings.push(t('warn.script'));
   if (info.remote) warnings.push(t('warn.remote', { n: info.remote }));
@@ -831,108 +1146,161 @@ function SourcePanel(props) {
   if (resendMode && props && props.inlined) warnings.push(t('resend.images', { n: props.inlined }));
   if (resendMode && props && props.skipped) warnings.push(t('resend.imagesSkipped', { n: props.skipped }));
 
-  const fieldRow = resendMode
+  const mailWidth = function () {
+    setWidth(width === 'mail' ? 'full' : 'mail');
+  };
+
+  const addressRow = function (label, list, setList, placeholder, key) {
+    return h(
+      'div',
+      { key: key, style: FIELD_ROW },
+      h('span', { style: FIELD_LABEL }, label),
+      h(ChipsEditor, { value: list, onChange: setList, placeholder: placeholder })
+    );
+  };
+
+  const linkButton = function (label, onClick, key) {
+    return h(
+      'button',
+      { key: key || label, type: 'button', style: LINK_BTN, onClick: onClick },
+      label
+    );
+  };
+
+  const recipientsBlock = resendMode
     ? h(
         'div',
-        { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
-        h(Input, {
-          value: toText,
-          placeholder: t('resend.to'),
-          spellCheck: false,
-          onChange: function (e) {
-            setToText(e.target.value);
-          },
-          style: { flex: '2 1 260px', minWidth: 0 }
-        }),
-        h(Input, {
-          value: ccText,
-          placeholder: t('resend.cc'),
-          spellCheck: false,
-          onChange: function (e) {
-            setCcText(e.target.value);
-          },
-          style: { flex: '1 1 160px', minWidth: 0 }
-        }),
-        h(Input, {
-          value: subjText,
-          placeholder: t('resend.subject'),
-          spellCheck: false,
-          onChange: function (e) {
-            setSubjText(e.target.value);
-          },
-          style: { flex: '2 1 240px', minWidth: 0 }
-        })
+        { style: { display: 'flex', flexDirection: 'column', gap: 6, flex: '0 0 auto' } },
+        addressRow(t('resend.to'), rTo, setRTo, t('resend.toHint'), 'to'),
+        addressRow(t('resend.cc'), rCc, setRCc, t('resend.ccHint'), 'cc'),
+        addressRow(t('resend.bcc'), rBcc, setRBcc, t('resend.bccHint'), 'bcc'),
+        h(
+          'div',
+          { style: FIELD_ROW },
+          h('span', { style: FIELD_LABEL }, t('resend.subject')),
+          h(Input, {
+            value: subjText,
+            spellCheck: false,
+            placeholder: t('resend.subjectHint'),
+            onChange: function (e) {
+              setSubjText(e.target.value);
+            },
+            style: { flex: '1 1 320px', minWidth: 0 }
+          })
+        ),
+        atts.length ? attachmentsRow() : null
       )
     : null;
 
-  const submitResend = function () {
-    const to = addrList(toText);
-    const cc = addrList(ccText);
-    if (!to.length) {
-      setNote(t('resend.needTo'));
-      return;
-    }
-    const all = to.concat(cc);
-    for (let i = 0; i < all.length; i++) {
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(all[i])) {
-        setNote(t('resend.badTo', { addr: all[i] }));
-        return;
-      }
-    }
-    if (typeof props.onResult !== 'function') return;
-    props.onResult({
-      to: to,
-      cc: cc,
-      subject: subjText.trim(),
-      html: unwrapDocument(source),
-      attachments: (props && props.attachments) || []
-    });
-  };
+  function attachmentsRow() {
+    return h(
+      'div',
+      { style: FIELD_ROW },
+      h('span', { style: FIELD_LABEL }, t('resend.attachments')),
+      h(
+        'div',
+        { style: { display: 'flex', gap: 6, flexWrap: 'wrap', flex: '1 1 260px', minWidth: 0, paddingTop: 3 } },
+        atts.map(function (a, i) {
+          return h(
+            'span',
+            { key: (a && a.blobId) || i, style: CHIP, title: (a && a.name) || '' },
+            h('span', { style: CHIP_TEXT }, (a && a.name) || (a && a.type) || '?'),
+            h('span', { style: { opacity: 0.55, fontSize: 11 } }, fmtBytes((a && a.size) || 0)),
+            h(
+              'button',
+              {
+                type: 'button',
+                style: CHIP_X,
+                title: t('resend.removeAtt'),
+                'aria-label': t('resend.removeAtt') + ' ' + ((a && a.name) || ''),
+                onClick: function () {
+                  setAtts(
+                    atts.filter(function (_x, j) {
+                      return j !== i;
+                    })
+                  );
+                }
+              },
+              '×'
+            )
+          );
+        })
+      )
+    );
+  }
 
-  const panes = h(
+  const sourcePane = h(
     'div',
-    { style: { display: 'flex', gap: 8, flex: '1 1 0', minHeight: 0 } },
-    view === 'preview'
-      ? null
+    { style: PANE_BOX },
+    h(PaneHead, { label: t('pane.source') }),
+    h(Textarea, {
+      ref: areaRef,
+      value: source,
+      spellCheck: false,
+      autoComplete: 'off',
+      placeholder: t('placeholder'),
+      onChange: function (e) {
+        setSource(e.target.value);
+      },
+      style: EDITOR
+    })
+  );
+
+  const previewPane = h(
+    'div',
+    { style: PANE_BOX },
+    h(PaneHead, {
+      label: t('pane.preview'),
+      right: h(
+        'span',
+        { style: { marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' } },
+        linkButton(width === 'mail' ? t('view.mailWidth') : t('view.fullWidth'), mailWidth, 'w')
+      )
+    }),
+    info.empty
+      ? h('div', { style: EMPTY_PANE }, h(Text, { size: 'sm', tone: 'muted' }, t('view.empty')))
       : h(
           'div',
-          { style: PANE },
-          h(Textarea, {
-            ref: areaRef,
-            value: source,
-            spellCheck: false,
-            autoComplete: 'off',
-            placeholder: t('placeholder'),
-            onChange: function (e) {
-              setSource(e.target.value);
-            },
-            style: EDITOR
+          { style: Object.assign({}, PREVIEW_WRAP, { padding: width === 'mail' ? 10 : 0 }) },
+          h('iframe', {
+            title: t('view.preview'),
+            sandbox: '',
+            srcDoc: previewHtml,
+            style:
+              width === 'mail'
+                ? {
+                    width: '100%',
+                    maxWidth: 680,
+                    height: '100%',
+                    minHeight: '100%',
+                    border: '1px solid rgba(127,127,127,0.22)',
+                    borderRadius: 6,
+                    background: '#ffffff',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.06)'
+                  }
+                : { width: '100%', height: '100%', minHeight: '100%', border: 0, background: '#ffffff' }
           })
-        ),
-    view === 'source'
-      ? null
-      : h(
-          'div',
-          { style: PANE },
-          info.empty
-            ? h(
-                'div',
-                { style: EMPTY_PANE },
-                h(Text, { size: 'sm', tone: 'muted' }, t('view.empty'))
-              )
-            : h('iframe', {
-                title: t('view.preview'),
-                sandbox: '',
-                srcDoc: previewHtml,
-                style: FRAME
-              })
         )
   );
 
-  const button = function (label, onClick, isBusy, variant) {
+  const panes = h(
+    'div',
+    { style: PANES },
+    view === 'preview' ? null : sourcePane,
+    view === 'source' ? null : previewPane
+  );
+
+  const button = function (label, onClick, isBusy, variant, title) {
     return h(
       Button,
-      { key: label, size: 'sm', variant: variant || 'secondary', busy: !!isBusy, onClick: onClick },
+      {
+        key: label,
+        size: 'sm',
+        variant: variant || 'secondary',
+        busy: !!isBusy,
+        onClick: onClick,
+        title: title || label
+      },
       label
     );
   };
@@ -943,10 +1311,10 @@ function SourcePanel(props) {
 
   return h(
     'div',
-    { style: ROOT },
+    { style: ROOT, onKeyDown: onKey },
     h(
-      Row,
-      { justify: 'between', align: 'center', gap: 8, wrap: true },
+      'div',
+      { style: BAR },
       Segmented
         ? h(Segmented, {
             value: view,
@@ -960,45 +1328,37 @@ function SourcePanel(props) {
             ]
           })
         : null,
+      resendMode
+        ? null
+        : h(
+            'div',
+            { style: ARM_BOX },
+            armed && Badge ? h(Badge, { tone: 'success' }, t('arm.on')) : null,
+            h(Text, { size: 'xs', tone: 'muted' }, t('arm.label')),
+            Switch
+              ? h(Switch, {
+                  checked: armed,
+                  onChange: function (next) {
+                    setArmed(!!next);
+                  }
+                })
+              : null
+          ),
       h(
         'div',
-        {
-          style: {
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            marginLeft: 'auto',
-            flexWrap: 'wrap'
-          }
-        },
+        { style: BAR_RIGHT },
         h(Text, { size: 'xs', tone: 'muted' }, statLine),
         resendMode
-          ? h(
-              Button,
-              {
-                size: 'sm',
-                variant: 'primary',
-                onClick: submitResend
-              },
-              t('resend.send')
-            )
-          : button(t('btn.pull'), loadBody, busy === 'pull', 'secondary'),
-        resendMode ? null : button(t('btn.push'), pushBody, busy === 'push', 'primary'),
-        armed && Badge ? h(Badge, { tone: 'success' }, t('arm.on')) : null,
-        h(Text, { size: 'xs', tone: 'muted' }, t('arm.label')),
-        Switch
-          ? h(Switch, {
-              checked: armed,
-              disabled: resendMode,
-              onChange: function (next) {
-                setArmed(!!next);
-              }
-            })
-          : null
+          ? button(t('resend.send'), submitResend, false, 'primary', t('hint.enter'))
+          : button(t('btn.pull'), loadBody, busy === 'pull', 'secondary', t('hint.pull')),
+        resendMode
+          ? null
+          : button(t('btn.push'), pushBody, busy === 'push', 'primary', t('hint.enter')),
+        null
       )
     ),
-    note ? h(Text, { size: 'xs', tone: 'muted' }, note) : null,
-    fieldRow,
+    note ? h('div', { style: HINT }, note) : null,
+    recipientsBlock,
     panes,
     warnings.length
       ? h(Alert, { tone: 'warning' }, h(Text, { size: 'xs' }, warnings.join('  ')))
@@ -1145,15 +1505,18 @@ async function startResend(ev) {
       return { blobId: a.blobId, name: a.name, type: a.type, size: a.size };
     });
 
+  const srcSubject = String((view && view.subject) || '');
+  const shortSubject = srcSubject.length > 54 ? srcSubject.slice(0, 53) + '…' : srcSubject;
   const res = await api.ui.openDialog({
-    title: t('resend.title'),
+    title: shortSubject ? t('resend.title') + ' · ' + shortSubject : t('resend.title'),
     slot: 'plugin-dialog',
     extraProps: {
       mode: 'resend',
       html: inlined.html,
-      subject: String((view && view.subject) || ''),
+      subject: srcSubject,
       to: addrList(view && view.to).join(', '),
       cc: addrList(view && view.cc).join(', '),
+      bcc: addrList(view && view.bcc).join(', '),
       attachments: carry,
       inlined: inlined.used,
       skipped: inlined.skipped
@@ -1165,11 +1528,12 @@ async function startResend(ev) {
 
   const to = addrList(res.to);
   const cc = addrList(res.cc);
+  const bcc = addrList(res.bcc);
   if (!to.length) {
     say('warning', t('resend.needTo'));
     return;
   }
-  const bad = to.concat(cc).filter(function (a) {
+  const bad = to.concat(cc).concat(bcc).filter(function (a) {
     return !EMAIL_RE.test(a);
   });
   if (bad.length) {
@@ -1178,7 +1542,14 @@ async function startResend(ev) {
   }
 
   const key = K_RESEND + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  const rec = { html: res.html, subject: String(res.subject || ''), to: to, cc: cc, at: Date.now() };
+  const rec = {
+    html: res.html,
+    subject: String(res.subject || ''),
+    to: to,
+    cc: cc,
+    bcc: bcc,
+    at: Date.now()
+  };
   if (!(await sset(key, rec))) {
     say('error', t('resend.openFailed'));
     return;
@@ -1187,6 +1558,7 @@ async function startResend(ev) {
     await api.compose.open({
       to: to,
       cc: cc,
+      bcc: bcc,
       subject: rec.subject,
       body: t('arm.notice'),
       attachments: Array.isArray(res.attachments) && res.attachments.length ? res.attachments : carry

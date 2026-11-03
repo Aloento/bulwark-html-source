@@ -1,9 +1,9 @@
 {
   "id": "html-source",
   "name": "HTML Source",
-  "version": "1.1.5",
+  "version": "1.2.2",
   "author": "Aloento",
-  "description": "Edit the HTML source of an outgoing message in a full-screen dialog, and send an already-sent message again (editable, new recipients) without the rich-text editor rewriting it.",
+  "description": "Raw HTML editing for the Bulwark Webmail composer: a full-screen source pane with a live preview, byte-exact sending, and Send again for messages you already sent.",
   "type": "ui-extension",
   "permissions": [
     "ui:composer-toolbar",
@@ -63,7 +63,23 @@
       "resend.openFailed": "Could not open the composer. Your source stayed in the dialog.",
       "resend.images": "Inlined {n} embedded image(s) as data URIs.",
       "resend.imagesSkipped": "{n} embedded image(s) were too large and were left out.",
-      "toast.resend": "Sent the raw HTML (send again)."
+      "toast.resend": "Sent the raw HTML (send again).",
+      "pane.source": "HTML",
+      "pane.preview": "Rendered",
+      "view.mailWidth": "600 px",
+      "view.fullWidth": "Full width",
+      "resend.bcc": "Bcc",
+      "resend.addCc": "+ Cc",
+      "resend.addBcc": "+ Bcc",
+      "resend.toHint": "Address, then Enter",
+      "resend.ccHint": "Address, then Enter",
+      "resend.bccHint": "Address, then Enter",
+      "resend.subjectHint": "Subject",
+      "resend.attachments": "Files",
+      "resend.remove": "Remove",
+      "resend.removeAtt": "Leave this file out",
+      "hint.enter": "Ctrl+Enter runs this",
+      "hint.pull": "Copy the composer body in here"
     },
     "zh": {
       "action.toggle": "HTML 源码",
@@ -109,7 +125,23 @@
       "resend.openFailed": "打开撰写器失败，源码已留在对话框里。",
       "resend.images": "内嵌图片已转成内联数据 {n} 张。",
       "resend.imagesSkipped": "{n} 张内嵌图片太大，没有带过来。",
-      "toast.resend": "已按原始 HTML 发送（再次发送）。"
+      "toast.resend": "已按原始 HTML 发送（再次发送）。",
+      "pane.source": "HTML",
+      "pane.preview": "渲染预览",
+      "view.mailWidth": "600 px",
+      "view.fullWidth": "全宽",
+      "resend.bcc": "密送",
+      "resend.addCc": "+ 抄送",
+      "resend.addBcc": "+ 密送",
+      "resend.toHint": "收件人邮箱，回车确认",
+      "resend.ccHint": "抄送邮箱，回车确认",
+      "resend.bccHint": "密送邮箱，回车确认",
+      "resend.subjectHint": "主题",
+      "resend.attachments": "附件",
+      "resend.remove": "移除",
+      "resend.removeAtt": "不带这个附件",
+      "hint.enter": "Ctrl+Enter 直接执行",
+      "hint.pull": "把撰写器里的正文读进来"
     },
     "zh-TW": {
       "action.toggle": "HTML 原始碼",
@@ -155,7 +187,23 @@
       "resend.openFailed": "開啟撰寫器失敗，原始碼已留在對話框裡。",
       "resend.images": "內嵌圖片已轉成內聯資料 {n} 張。",
       "resend.imagesSkipped": "{n} 張內嵌圖片太大，沒有帶過來。",
-      "toast.resend": "已依原始 HTML 傳送（再次傳送）。"
+      "toast.resend": "已依原始 HTML 傳送（再次傳送）。",
+      "pane.source": "HTML",
+      "pane.preview": "渲染預覽",
+      "view.mailWidth": "600 px",
+      "view.fullWidth": "全寬",
+      "resend.bcc": "密件副本",
+      "resend.addCc": "+ 副本",
+      "resend.addBcc": "+ 密件副本",
+      "resend.toHint": "收件者信箱，按 Enter 確認",
+      "resend.ccHint": "副本信箱，按 Enter 確認",
+      "resend.bccHint": "密件副本信箱，按 Enter 確認",
+      "resend.subjectHint": "主旨",
+      "resend.attachments": "附件",
+      "resend.remove": "移除",
+      "resend.removeAtt": "不帶這個附件",
+      "hint.enter": "Ctrl+Enter 直接執行",
+      "hint.pull": "把撰寫器裡的信件內文讀進來"
     }
   }
 }

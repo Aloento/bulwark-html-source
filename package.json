@@ -1,6 +1,6 @@
 {
   "name": "bulwark-html-source",
-  "version": "1.1.5",
+  "version": "1.2.2",
   "private": true,
   "description": "Raw HTML editing for Bulwark Webmail: full-screen source editor, live preview, byte-exact sending, and Send again for HTML you already sent.",
   "license": "MIT",

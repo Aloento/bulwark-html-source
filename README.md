@@ -4,7 +4,7 @@ A plugin for [Bulwark Webmail](https://bulwarkmail.org) that opens the message y
 composing as **raw HTML**, shows the **rendered result side by side**, and — if you turn the
 switch on — sends that source **byte for byte** instead of the re-serialised rich-text body.
 
-![The dialog: source on the left, rendered preview on the right](screenshots/dialog.png)
+![Send again: addresses, subject and the original HTML on the left, live preview on the right](screenshots/resend.png)
 
 Bulwark's composer is a Tiptap editor with two modes, rich text and plain text. There is no
 source view, and a message written by another client gets re-formatted the moment Bulwark
@@ -14,6 +14,9 @@ very last moment — while Send is already in flight.
 
 - **Full-screen dialog** opened from a `</>` button in the composer's bottom bar.
 - **Source / Split / Preview** — preview renders inside a sandboxed iframe, live as you type.
+  A width switch toggles the preview between a 600 px mail column and the full pane.
+- **Addresses as chips** — in Send again mode, To, Cc and Bcc are editable pills: type a
+  beginner, press Enter or comma, click the × to drop one. Subject and attachments are editable too.
 - **Send this source** — the HTML you see is the `text/html` part; the editor body is replaced
   with a notice so you can never mistake one for the other.
 - **Send again** — open a message you already sent, press **Send again** in the reader toolbar,
@@ -48,13 +51,14 @@ Then, in the webmail: **Admin → Plugins → Upload**, pick the zip, enable it.
 page. The `</>` **HTML source** button appears in the composer's bottom bar, next to Attach,
 Templates and Options.
 
-The zip is about 10 KB: there is no bundler, no dependency and no build step — the bundle is
+The zip is about 19 KB: there is no bundler, no dependency and no build step — the bundle is
 plain CommonJS that the host evaluates, with React and the UI kit supplied by the host.
 
 ## Use
 
 1. Write a message and press **HTML source** (`</>`), or paste HTML that arrived from
-   somewhere else.
+   somewhere else. Everything lives on one row: view switch and the send toggle on the left,
+   size and the primary action on the right; `Ctrl`/`Cmd`+`Enter` runs the primary action.
 2. Edit on the left. **Split** keeps the rendered preview next to it; **Preview** gives the
    preview the whole width.
 3. **Read body** pulls the current editor content into the source pane. **Write back** pushes
@@ -63,7 +67,7 @@ plain CommonJS that the host evaluates, with React and the UI kit supplied by th
    the switch is for.
 4. Flip **Send this source** when the source pane is what should actually go out.
 
-![Armed: the badge replaces the editor body with a notice](screenshots/armed.png)
+![Writing: the HTML pane, the armed toggle and the stripped preview](screenshots/compose.png)
 
 While the switch is on, the composer body is replaced with a notice saying that the message
 will be sent as the source. Switch it off and the previous body comes back. The notice itself
@@ -176,7 +180,7 @@ pack.mjs             zip writer (zlib, no dependencies)
 test.mjs             host-shaped sandbox tests
 chrome/              optional server-side CSS for the full-screen dialog
 docs/                how it works, and the chrome override
-screenshots/         dialog, armed, empty
+screenshots/         resend, compose, empty
 ```
 
 ## License
